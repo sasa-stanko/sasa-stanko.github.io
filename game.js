@@ -2,13 +2,11 @@ class drawer_t {
   static cell_size = 40;
   static line_width = 1;
   static wall_extra_width = 1;
-  static gem_line_width = 2;
 
   static background_color = "#0e1a2c";
-  static line_color = "#456096";
-  static wall_color = "#e9eff8"
-  static robot_colors = new Map([['r', "#f00"], ['g', "#2d5"], ['b', "#09f"], ['y', "#fc1"]]);
-  static gem_color = "#eee";
+  static grid_line_color = "#456096";
+  static line_color = "#e9eff8"
+  static color_by_code = new Map([['r', "#f00"], ['g', "#2d5"], ['b', "#09f"], ['y', "#fc1"]]);
 
   canvas;
   rows;
@@ -38,7 +36,7 @@ class drawer_t {
     const cell_size = drawer_t.cell_size;
     const [x, y] = this._to_top_left(r, c);
     ctx.save();
-    ctx.fillStyle = drawer_t.line_color;
+    ctx.fillStyle = drawer_t.grid_line_color;
     ctx.fillRect(x, y, cell_size + 2 * line_width, cell_size + 2 * line_width);
     ctx.fillStyle = drawer_t.background_color;
     ctx.fillRect(x + line_width, y + line_width, cell_size, cell_size);
@@ -60,7 +58,7 @@ class drawer_t {
     const [x, y] = this._to_top_left(r, c);
     const l = length * step + line_width;
     ctx.save();
-    ctx.fillStyle = drawer_t.wall_color;
+    ctx.fillStyle = drawer_t.line_color;
     if (vertical)
       ctx.fillRect(x - wall_padding, y, line_width + 2 * wall_padding, l);
     else
@@ -73,7 +71,7 @@ class drawer_t {
     const a = 0.5 * (drawer_t.cell_size / 2);
     const [x, y] = this._to_center(r, c);
     ctx.save();
-    ctx.fillStyle = drawer_t.robot_colors.get(color);
+    ctx.fillStyle = drawer_t.color_by_code.get(color);
     ctx.translate(x, y);
     ctx.rotate(-this._to_angle(dir));
     ctx.beginPath();
@@ -89,8 +87,8 @@ class drawer_t {
     const a = 0.3 * (drawer_t.cell_size / 2);
     const [x, y] = this._to_center(r, c);
     ctx.save();
-    ctx.strokeStyle = drawer_t.gem_color;
-    ctx.lineWidth = drawer_t.gem_line_width;
+    ctx.strokeStyle = drawer_t.line_color;
+    ctx.lineWidth = 2;
     ctx.translate(x, y);
     ctx.beginPath();
     ctx.moveTo(0, a);
@@ -104,12 +102,62 @@ class drawer_t {
     ctx.restore();
   }
 
+  draw_bug(r, c) {
+    const ctx = this._get_ctx();
+    const a = 0.35 * (drawer_t.cell_size / 2);
+    const [x, y] = this._to_center(r, c);
+    ctx.save();
+    ctx.strokeStyle = drawer_t.line_color;
+    ctx.lineWidth = 1;
+    ctx.translate(x, y);
+    for (let i = 0; i < 4; ++i) {
+      ctx.beginPath();
+      ctx.moveTo(-0.25 * a, 0);
+      ctx.lineTo(0, a);
+      ctx.lineTo(0.25 * a, 0);
+      ctx.lineTo(0, -a);
+      ctx.lineTo(-0.25 * a, 0);
+      ctx.stroke();
+      ctx.rotate(Math.PI / 4);
+    }
+    ctx.restore();
+  }
+
+  draw_chip(color, r, c) {
+    const ctx = this._get_ctx();
+    const a = 0.3 * (drawer_t.cell_size / 2);
+    const [x, y] = this._to_center(r, c);
+    ctx.save();
+    ctx.strokeStyle = drawer_t.color_by_code.get(color);
+    ctx.lineWidth = 1;
+    ctx.translate(x, y);
+    ctx.beginPath();
+    ctx.moveTo(-a, -a);
+    ctx.lineTo(-a, a);
+    ctx.lineTo(a, a);
+    ctx.lineTo(a, -a);
+    ctx.lineTo(-a, -a);
+    ctx.stroke();
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 4; ++i) {
+      ctx.beginPath();
+      ctx.moveTo(-0.6 * a, a);
+      ctx.lineTo(-0.6 * a, 1.5 * a);
+      ctx.stroke();
+      ctx.moveTo(0.6 * a, a);
+      ctx.lineTo(0.6 * a, 1.5 * a);
+      ctx.stroke();
+      ctx.rotate(Math.PI / 2);
+    }
+    ctx.restore();
+  }
+
   draw_text(text) {
     const ctx = drawer._get_ctx();
     ctx.save();
     ctx.font = "28px Arial";
     ctx.lineWidth = 4;
-    ctx.fillStyle = drawer_t.wall_color;
+    ctx.fillStyle = drawer_t.line_color;
     ctx.strokeStyle = drawer_t.background_color;
     ctx.textAlign = "center";
     ctx.strokeText(text, 0.5 * canvas.width, 0.5 * canvas.height);
@@ -155,6 +203,8 @@ class level_t {
   cells() { return this._cells; }
   robots() { return this.m.get("robots"); }
   gems() { return Array.from(this._gems).map((cell) => this._decode_cell(cell)); }
+  bugs() { const bugs = this.m.get("bugs"); if (bugs) return bugs; else return []; }
+  chips() { const chips = this.m.get("chips"); if (chips) return chips; else return []; }
 
   _encode_cell(r, c) {
     return r * this.cols() + c;
@@ -444,6 +494,10 @@ function draw() {
     drawer.draw_wall(wall[0], wall[1], wall[2] === "v", wall.length > 3 ? wall[3] : 1)
   for (const gem of level.gems())
     drawer.draw_gem(...gem);
+  for (const bug of level.bugs())
+    drawer.draw_bug(...bug);
+  for (const chip of level.chips())
+    drawer.draw_chip(...chip);
   for (const robot of robots)
     drawer.draw_robot(robot.color(), robot.pos().r, robot.pos().c, robot.pos().dir);
 }
