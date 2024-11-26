@@ -1,6 +1,6 @@
 class drawer_t {
   static cell_size = 40;
-  static line_width = 1;
+  static grid_line_width = 1;
   static wall_extra_width = 1;
 
   static background_color = "#0e1a2c";
@@ -19,7 +19,7 @@ class drawer_t {
   }
 
   resize_canvas() {
-    const line_width = drawer_t.line_width;
+    const line_width = drawer_t.grid_line_width;
     const cell_size = drawer_t.cell_size;
     const wall_padding = drawer_t.wall_extra_width;
     this.canvas.width = line_width + this.cols * (cell_size + line_width) + 2 * wall_padding;
@@ -32,7 +32,7 @@ class drawer_t {
 
   draw_cell(r, c) {
     const ctx = this._get_ctx();
-    const line_width = drawer_t.line_width;
+    const line_width = drawer_t.grid_line_width;
     const cell_size = drawer_t.cell_size;
     const [x, y] = this._to_top_left(r, c);
     ctx.save();
@@ -51,7 +51,7 @@ class drawer_t {
 
   draw_wall(r, c, vertical, length) {
     const ctx = this._get_ctx();
-    const line_width = drawer_t.line_width;
+    const line_width = drawer_t.grid_line_width;
     const cell_size = drawer_t.cell_size;
     const wall_padding = drawer_t.wall_extra_width;
     const step = cell_size + line_width;
@@ -170,7 +170,7 @@ class drawer_t {
   }
 
   _to_top_left(r, c, inside = false) {
-    const line_width = drawer_t.line_width;
+    const line_width = drawer_t.grid_line_width;
     const cell_size = drawer_t.cell_size;
     const wall_padding = drawer_t.wall_extra_width;
     const x = wall_padding + c * (cell_size + line_width) + (inside ? line_width : 0);
@@ -205,6 +205,18 @@ class level_t {
   gems() { return Array.from(this._gems).map((cell) => this._decode_cell(cell)); }
   bugs() { const bugs = this.m.get("bugs"); if (bugs) return bugs; else return []; }
   chips() { const chips = this.m.get("chips"); if (chips) return chips; else return []; }
+
+  get_cell_element(r, c) {
+    if (this._gems.has(this._encode_cell(r, c)))
+      return "gem";
+    for (const bug of this.bugs())
+      if (bug[0] == r && bug[1] == c)
+        return "bug";
+    for (const chip of this.chips())
+      if (chip[1] == r && chip[2] == c)
+        return "chip";
+    return "none";
+  }
 
   _encode_cell(r, c) {
     return r * this.cols() + c;
@@ -405,6 +417,14 @@ function load_level() {
 
 let program = null;
 
+function count_instructions() {
+  const total = document.getElementById("r").value.length
+    + document.getElementById("g").value.length
+    + document.getElementById("b").value.length
+    + document.getElementById("y").value.length;
+  document.getElementById("instruction_count").innerHTML = "instructions: " + total;
+}
+
 function load_program() {
   program = new Map();
   program.set('r', document.getElementById("r").value.split(""));
@@ -425,6 +445,7 @@ function prepare() {
   load_level();
   load_program();
   load_robots();
+  count_instructions();
   draw();
 }
 
@@ -515,7 +536,8 @@ function get_next_pos(pos, instruction) {
 }
 
 function step_robots() {
-  for (let robot of robots) {
+  for (let i = robots.length; i-- > 0;) {
+    const robot = robots[i];
     if (robot.process().is_done())
       continue;
     robot.process().step_calls();
@@ -523,6 +545,10 @@ function step_robots() {
     let from = robot.pos();
     let to = get_next_pos(from, instr);
     if (level.is_move_allowed(from.r, from.c, to.r, to.c)) {
+      if (level.get_cell_element(to.r, to.c) == "bug") {
+        robots.splice(i, 1);
+        continue;
+      }
       from.update(to);
       level.visit_cell(to.r, to.c);
     }

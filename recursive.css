@@ -1,0 +1,40 @@
+.monospaced, input {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 24px;
+}
+button {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 20px;
+}
+body {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 24px;
+  background-color: #0e1a2c;
+  margin: 0 auto;
+}
+p, a {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 24px;
+  color:#e9eff8;
+}
+label {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 24px;
+  font-weight: bold;
+  width: 40px;
+  margin-right: 10px;
+}
+textarea {
+  width: 560px;
+  height: 70px;
+}
+.box {
+  position: absolute;
+  left: 50%;
+  width: 640px;
+  margin-left: -320px;
+}
+.center {
+  margin: 0 auto;
+  display: block;
+}
