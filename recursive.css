@@ -10,7 +10,10 @@ body {
   font-family: 'Courier New', Courier, monospace;
   font-size: 24px;
   background-color: #0e1a2c;
-  margin: 0 auto;
+  position: absolute;
+  left: 50%;
+  width: 640px;
+  margin-left: -320px;
 }
 p, a {
   font-family: 'Courier New', Courier, monospace;
@@ -28,13 +31,24 @@ textarea {
   width: 560px;
   height: 70px;
 }
-.box {
-  position: absolute;
-  left: 50%;
-  width: 640px;
-  margin-left: -320px;
-}
-.center {
+.center, #canvas, button {
   margin: 0 auto;
   display: block;
+}
+.wrapper {
+  position: relative;
+}
+#message {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 32px;
+  position: absolute;
+  margin-inline: auto;
+  width: fit-content;
+  left: 0;
+  right: 0;
+  margin-top: auto;
+  margin-bottom: auto;
+  top: calc(50% - 18px);
+  -webkit-text-stroke: 1px;
+  background-color: #0e1a2c88;
 }

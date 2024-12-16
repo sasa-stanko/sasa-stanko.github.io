@@ -66,14 +66,14 @@ class drawer_t {
     ctx.restore();
   }
 
-  draw_robot(color, r, c, dir) {
+  draw_robot(color, r, c, angle) {
     const ctx = this._get_ctx();
     const a = 0.5 * (drawer_t.cell_size / 2);
     const [x, y] = this._to_center(r, c);
     ctx.save();
     ctx.fillStyle = drawer_t.color_by_code.get(color);
     ctx.translate(x, y);
-    ctx.rotate(-this._to_angle(dir));
+    ctx.rotate(-angle * Math.PI / 180);
     ctx.beginPath();
     ctx.moveTo(-a, -0.85 * a);
     ctx.lineTo(a, 0);
@@ -152,19 +152,6 @@ class drawer_t {
     ctx.restore();
   }
 
-  draw_text(text) {
-    const ctx = drawer._get_ctx();
-    ctx.save();
-    ctx.font = "28px Arial";
-    ctx.lineWidth = 4;
-    ctx.fillStyle = drawer_t.line_color;
-    ctx.strokeStyle = drawer_t.background_color;
-    ctx.textAlign = "center";
-    ctx.strokeText(text, 0.5 * canvas.width, 0.5 * canvas.height);
-    ctx.fillText(text, 0.5 * canvas.width, 0.5 * canvas.height);
-    ctx.restore();
-  }
-
   _get_ctx() {
     return this.canvas.getContext("2d");
   }
@@ -182,10 +169,6 @@ class drawer_t {
     const cs = drawer_t.cell_size;
     const [x, y] = this._to_top_left(r, c, true);
     return [x + 0.5 * cs, y + 0.5 * cs];
-  }
-
-  _to_angle(dir) {
-    return dir * Math.PI / 180;
   }
 };
 
@@ -404,6 +387,47 @@ class robot_t {
   }
 };
 
+const animation_e = Object.freeze({
+  none: 0,
+  move: 1,
+  turn_left: 2,
+  turn_right: 3
+});
+
+class animation_t {
+  constructor(type, robot) {
+    this._type = type;
+    this._color = robot.color();
+    this._r = robot.pos().r;
+    this._c = robot.pos().c;
+    this._angle = robot.pos().dir;
+    this._t = 0.0;
+  }
+
+  set_progress(progress) { this._t = Math.min(progress, 1.0); }
+
+  color() { return this._color; }
+
+  r() {
+    if (this._type == animation_e.move && this._angle == 90) return this._r - this._t * 1;
+    if (this._type == animation_e.move && this._angle == 270) return this._r + this._t * 1;
+    return this._r;
+  }
+
+  c() {
+    if (this._type == animation_e.move && this._angle == 0) return this._c + this._t * 1;
+    if (this._type == animation_e.move && this._angle == 180) return this._c - this._t * 1;
+    return this._c;
+  }
+
+  angle() {
+    const t = Math.min(1.0, this._t * 1.2);
+    if (this._type == animation_e.turn_left) return (this._angle + t * 90) % 360;
+    if (this._type == animation_e.turn_right) return (this._angle - t * 90) % 360;
+    return this._angle;
+  }
+};
+
 // ---
 
 let level = null;
@@ -434,14 +458,20 @@ function load_program() {
 }
 
 let robots = null;
+let robots_animations = null;
 
 function load_robots() {
   robots = [];
-  for (const [color, r, c, dir] of level.robots())
-    robots.push(new robot_t(new pos_t(r, c, dir), new process_t(program, color)));
+  robots_animations = [];
+  for (const [color, r, c, dir] of level.robots()) {
+    let robot = new robot_t(new pos_t(r, c, dir), new process_t(program, color));
+    robots.push(robot);
+    robots_animations.push(new animation_t(animation_e.none, robot))
+  }
 }
 
 function prepare() {
+  document.getElementById("message").innerText = "";
   load_level();
   load_program();
   load_robots();
@@ -453,10 +483,13 @@ prepare();
 
 // ---
 
+const intervals_in_step = 10;
 let interval_id = null;
+let interval_index = 0;
 
 function start_main_loop() {
-  const time_step = 400;
+  const time_step = 40;
+  interval_index = intervals_in_step - 1;
   interval_id = setInterval(main_loop, time_step);
 }
 
@@ -487,10 +520,7 @@ function is_done() {
 
 function on_done() {
   stop_main_loop();
-  if (is_win())
-    drawer.draw_text("LEVEL COMPLETED!");
-  else
-    drawer.draw_text("PROCESS STOPPED!");
+  document.getElementById("message").innerText = is_win() ? "LEVEL COMPLETED" : "PROCESS STOPPED";
   document.getElementById("run_button").innerText = "Reset";
 }
 
@@ -519,8 +549,8 @@ function draw() {
     drawer.draw_bug(...bug);
   for (const chip of level.chips())
     drawer.draw_chip(...chip);
-  for (const robot of robots)
-    drawer.draw_robot(robot.color(), robot.pos().r, robot.pos().c, robot.pos().dir);
+  for (const robot of robots_animations)
+    drawer.draw_robot(robot.color(), robot.r(), robot.c(), robot.angle());
 }
 
 
@@ -536,32 +566,58 @@ function get_next_pos(pos, instruction) {
 }
 
 function step_robots() {
-  for (let i = robots.length; i-- > 0;) {
-    const robot = robots[i];
-    if (robot.process().is_done())
+  for (let i = 0; i < robots.length; ++i) {
+    let robot = robots[i];
+    if (robot.process().is_done()) {
+      robots_animations[i] = new animation_t(animation_e.none, robot);
       continue;
+    }
     robot.process().step_calls();
     const instr = robot.process().get_current_instruction();
     let from = robot.pos();
     let to = get_next_pos(from, instr);
     if (level.is_move_allowed(from.r, from.c, to.r, to.c)) {
-      if (level.get_cell_element(to.r, to.c) == "bug") {
-        robots.splice(i, 1);
-        continue;
+      switch (instr) {
+        case "m": robots_animations[i] = new animation_t(animation_e.move, robot); break;
+        case "<": robots_animations[i] = new animation_t(animation_e.turn_left, robot); break;
+        case ">": robots_animations[i] = new animation_t(animation_e.turn_right, robot); break;
+        default: robots_animations[i] = new animation_t(animation_e.none, robot); break;
       }
       from.update(to);
-      level.visit_cell(to.r, to.c);
     }
+    else
+      robots_animations[i] = new animation_t(animation_e.none, robot);
     robot.process().step_once();
     robot.process().step_calls();
   }
 }
 
 function main_loop() {
-  if (is_done()) {
-    on_done();
-    return;
+  const last_move_index = Math.ceil(intervals_in_step / 1.6);
+
+  interval_index = (interval_index + 1) % intervals_in_step;
+  if (interval_index == 0) {
+    if (is_done()) {
+      draw();
+      on_done();
+      return;
+    }
+    step_robots();
   }
-  step_robots();
+  if (interval_index <= last_move_index) {
+    for (let robot of robots_animations)
+      robot.set_progress(interval_index / last_move_index);
+  }
+  if (interval_index == last_move_index) {
+    for (let i = robots.length; i-- > 0;) {
+      const r = robots[i].pos().r;
+      const c = robots[i].pos().c;
+      level.visit_cell(r, c);
+      if (level.get_cell_element(r, c) == "bug") {
+        robots.splice(i, 1);
+        robots_animations.splice(i, 1);
+      }
+    }
+  }
   draw();
 }
